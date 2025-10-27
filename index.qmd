@@ -4,7 +4,6 @@ image: C:\Users\mclou\Downloads\R_Intro_EO\Oberpfaffenhofen_smile.jpg\
 about: 
   template: jolla
   image-shape: round
-  image-width: 17em
   links:
     - text: Email
       href: mailto:william.mcloughlin@stud-mail.uni-wuerzburg.de
