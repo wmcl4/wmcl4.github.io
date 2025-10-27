@@ -10,4 +10,4 @@ about:
     - text: Email
       href: mailto:william.mclopughlin@stud-mail.uni-wuerzburg.de
 ---
-Hello, my name is Will! There's not much here yet, but keep an eye out and maybe there will be more in the future :)
+Hello, my name is Will! There's not much here yet, but keep an eye out and maybe there will be more in the future. :)
