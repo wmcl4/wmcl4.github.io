@@ -1,5 +1,12 @@
 ---
 title: "Will McLoughlin"
+image: "C:\Users\mclou\Downloads\R_Intro_EO\Oberpfaffenhofen_smile.jpg"
+about: 
+  template: jolla
+  image-shape: round
+  links:
+    - text: Email
+      href: william.mcloughlin@stud-mail.uni-wuerzburg.de
 ---
 
-Hello! This is my first time playing with making a website. There's not much here yet, but keep an eye out and maybe there will be more in the future :)
+Hello, my name is Will! There's not much here yet, but keep an eye out and maybe there will be more in the future :)
