@@ -1,11 +1,5 @@
 ---
-title: "wmcl4.github.io"
+title: "Will McLoughlin"
 ---
 
-This is a Quarto website.
-
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
-
-```{r}
-1 + 1
-```
+Hello! This is my first time playing with making a website. There's not much here yet, but keep an eye out and maybe there will be more in the future :)
