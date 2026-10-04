@@ -1,13 +1,9 @@
 name: Update orbit data
-run: |
-          mkdir -p docs/satellites/data
-          cp satellites/data/* docs/satellites/data/
-          cp satellites/index.html docs/satellites/index.html
 
 on:
   schedule:
-    - cron: "17 */6 * * *"   # every 6 hours (CelesTrak asks for no more than every 2 h)
-  workflow_dispatch:          # lets you run it by hand from the Actions tab
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,10 +17,10 @@ jobs:
       - name: Download TLEs from CelesTrak
         run: |
           mkdir -p satellites/data
-          fetch() {  # name, query
+          fetch() {
             curl -fsS --retry 3 --retry-delay 10 \
               "https://celestrak.org/NORAD/elements/gp.php?$2&FORMAT=tle" -o "/tmp/$1.tle"
-            grep -q '^1 ' "/tmp/$1.tle"   # reject error pages / empty answers
+            grep -q '^1 ' "/tmp/$1.tle"
             mv "/tmp/$1.tle" "satellites/data/$1.tle"
           }
           fetch landsat  "NAME=LANDSAT"
@@ -34,18 +30,17 @@ jobs:
           fetch smap     "CATNR=40376"
           echo "{\"updated\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > satellites/data/updated.json
 
-      # satellites/data is the source copy (Quarto copies it into docs/ on render).
-      # docs/satellites/data is the live copy, so the site updates without a re-render.
       - name: Copy into the published folder
         run: |
           mkdir -p docs/satellites/data
           cp satellites/data/* docs/satellites/data/
+          cp satellites/index.html docs/satellites/index.html
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add satellites/data docs/satellites/data
+          git add satellites/data docs/satellites
           if git diff --cached --quiet; then
             echo "No changes"
           else
