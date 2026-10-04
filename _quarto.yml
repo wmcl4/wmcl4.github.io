@@ -1,6 +1,8 @@
 project:
   type: website
   output-dir: docs
+  resources:
+    - satellites/
 
 website:
   title: "wmcl4.github.io"
