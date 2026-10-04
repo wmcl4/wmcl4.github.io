@@ -1,4 +1,8 @@
 name: Update orbit data
+run: |
+          mkdir -p docs/satellites/data
+          cp satellites/data/* docs/satellites/data/
+          cp satellites/index.html docs/satellites/index.html
 
 on:
   schedule:
