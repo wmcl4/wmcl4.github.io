@@ -2,373 +2,45 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Satellite imaging passes</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<title>Satellite Overpass Times</title>
+<meta name="description" content="Look up when Landsat and Sentinel satellites pass over a location.">
 <style>
-:root{--bg:#f3f5f4;--panel:#fff;--ink:#14201c;--mute:#5d6b65;--line:#d3dbd7;--acc:#0b6b5c;--acc-ink:#fff;--night:#7a5a1f}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e1513;--panel:#16201d;--ink:#e4ece8;--mute:#8fa09a;--line:#2a3833;--acc:#4fd1b5;--acc-ink:#06241d;--night:#d9b25f}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Source Sans 3","Segoe UI",system-ui,sans-serif}
-main{max-width:980px;margin:0 auto;padding:28px 18px 60px}
-h1{font:600 28px/1.2 "Fraunces",Georgia,serif;margin:0 0 6px}
-p.lede{color:var(--mute);margin:0 0 22px;max-width:62ch}
-form{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 14px;align-items:end}
-label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute)}
-label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink);padding-bottom:8px}
-input,select,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:7px 8px;min-width:0}
-input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-button{cursor:pointer}
-button.go{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
-.span2{grid-column:span 2}
-details{grid-column:1/-1}
-summary{cursor:pointer;color:var(--acc);font-weight:600}
-#map{height:340px;margin-top:10px;border:1px solid var(--line);border-radius:4px}
-.hint{font-size:13px;color:var(--mute);margin:8px 0 0}
-#status{margin:14px 2px;color:var(--mute);min-height:1.5em}
-h2{font:600 18px/1.3 "Fraunces",Georgia,serif;margin:26px 0 8px}
-.wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px}
-table{border-collapse:collapse;width:100%;min-width:560px}
-th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
-th{font-weight:600;color:var(--mute);font-size:13px}
-tr:last-child td{border-bottom:0}
-td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-.night{color:var(--night)}
-.note{color:var(--mute);font-size:13px;margin-top:10px;max-width:80ch}
+body{background:#fff;color:#000;font-family:"Times New Roman",Times,serif;font-size:16px;margin:12px 18px;max-width:760px}
 </style>
 </head>
 <body>
-<main>
-<h1>Satellite imaging passes</h1>
-<p class="lede">Times when an Earth-observation satellite's footprint covers a location. This shows opportunity, not confirmed imaging.</p>
+<h1>Satellite Overpass Times</h1>
 
-<form id="f">
-  <label>Latitude<input id="lat" type="number" step="any" min="-90" max="90" value="49.7874" required></label>
-  <label>Longitude<input id="lon" type="number" step="any" min="-180" max="180" value="9.9781" required></label>
-  <label>Time zone<select id="tz"></select></label>
-  <label>Start (in that time zone)<input id="start" type="datetime-local" required></label>
-  <label>Mapping window (days)<input id="days" type="number" min="1" max="30" value="20"></label>
-  <label>Daily window (hours)<input id="dh" type="number" min="12" max="168" value="48"></label>
-  <label>Min sun elevation (deg)<input id="minsun" type="number" step="1" value="5"></label>
-  <label>Max rows<input id="rows" type="number" min="5" max="200" value="20"></label>
-  <label class="chk"><input id="night" type="checkbox"> Show optical night passes</label>
-  <label class="chk"><input id="single" type="checkbox" checked> One combined board</label>
-  <button type="button" id="geo">Use my location</button>
-  <button type="button" id="now">Start now</button>
-  <details id="mapbox">
-    <summary>Pick location on map</summary>
-    <p class="hint">Click the map or drag the pin. The coordinates and time zone update automatically.</p>
-    <div id="map"></div>
-  </details>
-  <button class="go span2" type="submit">Find passes</button>
-</form>
+<p>This page looks up when Landsat and Sentinel Earth-observation satellites pass over a place. You give it a latitude and longitude (or click on a map) and a start date, and it makes a list of passes with the local time.</p>
 
-<div id="status" role="status"></div>
-<div id="out"></div>
-<p class="note">Map tiles by OpenStreetMap contributors; time zones from Open-Meteo. Each time is the moment the satellite is closest to you; your location is inside its swath around then. Orbits come from CelesTrak and are propagated from the latest elements, so passes far from the data date are less accurate. Swath widths are nominal; check mission documentation.</p>
-</main>
+<p><a href="tracker.html"><b>Go to the overpass tracker</b></a></p>
 
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
-<script>
-"use strict";
-let R = 6371.0;  // set per query to the local Earth radius
-const D2R = Math.PI / 180;
-const gaussR = latRad => { const e2 = 0.00669438, q = Math.sin(latRad) ** 2; return 6378.137 * Math.sqrt(1 - e2) / (1 - e2 * q); };
+<hr>
 
-const SOURCES = {
-  landsat: "NAME=LANDSAT", sentinel: "NAME=SENTINEL",
-  noaa20: "CATNR=43013", noaa21: "CATNR=54234", smap: "CATNR=40376"
-};
-// Same table as passes.py
-const INSTRUMENTS = [
-  {match:39084, source:"landsat", view:"mapping", mode:"nadir", swath:185, day:true, label:"LANDSAT 8"},
-  {match:49260, source:"landsat", view:"mapping", mode:"nadir", swath:185, day:true, label:"LANDSAT 9"},
-  {match:40697, source:"sentinel", view:"mapping", mode:"nadir", swath:290, day:true},
-  {match:42063, source:"sentinel", view:"mapping", mode:"nadir", swath:290, day:true},
-  {match:60989, source:"sentinel", view:"mapping", mode:"nadir", swath:290, day:true},
-  {match:"SENTINEL-1C", source:"sentinel", view:"mapping", mode:"side", near:350, far:600, side:"right", day:false},
-  {match:"SENTINEL-1D", source:"sentinel", view:"mapping", mode:"side", near:350, far:600, side:"right", day:false},
-  {match:"SENTINEL-3A", source:"sentinel", view:"daily", mode:"nadir", swath:1270, day:true},
-  {match:"SENTINEL-3B", source:"sentinel", view:"daily", mode:"nadir", swath:1270, day:true},
-  {match:"SENTINEL-5P", source:"sentinel", view:"daily", mode:"nadir", swath:2600, day:true},
-  {match:43013, source:"noaa20", view:"daily", mode:"nadir", swath:3000, day:true, label:"NOAA-20"},
-  {match:54234, source:"noaa21", view:"daily", mode:"nadir", swath:3000, day:true, label:"NOAA-21"},
-  {match:40376, source:"smap", view:"daily", mode:"nadir", swath:1000, day:false, label:"SMAP"}
-];
+<h2>Satellites covered</h2>
+<table border="1" cellpadding="4" cellspacing="0">
+<tr><th>Satellite</th><th>Type</th><th>Swath width</th></tr>
+<tr><td>Landsat 8, 9</td><td>Optical</td><td>185 km</td></tr>
+<tr><td>Sentinel-2 A, B, C</td><td>Optical</td><td>290 km</td></tr>
+<tr><td>Sentinel-1 C, D</td><td>Radar (looks to one side)</td><td>about 250 km</td></tr>
+<tr><td>Sentinel-3 A, B</td><td>Optical, wide swath</td><td>1270 km</td></tr>
+<tr><td>Sentinel-5P</td><td>Atmosphere</td><td>2600 km</td></tr>
+<!-- Hidden for now:
+<tr><td>NOAA-20, NOAA-21</td><td>VIIRS, wide swath</td><td>about 3000 km</td></tr>
+<tr><td>SMAP</td><td>Radiometer</td><td>1000 km</td></tr>
+-->
+</table>
 
-const $ = id => document.getElementById(id);
+<h2>Notes</h2>
+<ul>
+<li>A pass is the moment a satellite is level with your location while your location is inside its swath. It shows when the satellite <i>could</i> image you, not that it did.</li>
+<li>Optical satellites need daylight, so night passes are left out unless you turn them on. Radar works at night.</li>
+<li>Swath widths are nominal. Check each mission's documentation for exact numbers.</li>
+<li>Passes far from today are less accurate, because the orbits are calculated from the most recent published data.</li>
+</ul>
 
-/* ---------- time zones ---------- */
-const zones = Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : ["UTC", "Europe/Berlin"];
-if (!zones.includes("UTC")) zones.unshift("UTC");
-$("tz").innerHTML = zones.map(z => `<option>${z}</option>`).join("");
-$("tz").value = zones.includes("Europe/Berlin") ? "Europe/Berlin" : "UTC";
-
-function tzOffsetMs(ms, tz) {
-  const p = {};
-  new Intl.DateTimeFormat("en-US", {timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric",
-    day: "numeric", hour: "numeric", minute: "numeric", second: "numeric"})
-    .formatToParts(new Date(ms)).forEach(x => p[x.type] = +x.value);
-  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(ms / 1000) * 1000;
-}
-function wallToUtcMs(str, tz) {          // "YYYY-MM-DDTHH:MM" in tz -> UTC ms
-  const guess = Date.parse(str + ":00Z");
-  let ms = guess - tzOffsetMs(guess, tz);
-  return guess - tzOffsetMs(ms, tz);
-}
-function utcMsToWall(ms, tz) {
-  return new Date(ms + tzOffsetMs(ms, tz)).toISOString().slice(0, 16);
-}
-function fmtLocal(ms, tz) {
-  return new Intl.DateTimeFormat("en-GB", {timeZone: tz, weekday: "short", day: "2-digit", month: "short",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short"}).format(new Date(ms)).replace(",", "");
-}
-function countdown(sec) {
-  const s = Math.max(0, Math.floor(sec)), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600),
-    m = Math.floor(s % 3600 / 60);
-  return d ? `${d}d ${h}h ${String(m).padStart(2, "0")}m` : h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
-}
-function setNow() { $("start").value = utcMsToWall(Date.now(), $("tz").value); }
-setNow();
-$("now").onclick = setNow;
-
-$("geo").onclick = () => {
-  if (!navigator.geolocation) return ($("status").textContent = "This browser has no geolocation.");
-  navigator.geolocation.getCurrentPosition(
-    p => setLocation(p.coords.latitude, p.coords.longitude, true),
-    () => ($("status").textContent = "Location permission denied. Enter coordinates instead."));
-};
-
-/* ---------- location: map + automatic time zone ---------- */
-let curTz = $("tz").value, map, marker, tzReq = 0;
-function setTz(tz) {                    // switch zone but keep the same instant
-  try { new Intl.DateTimeFormat("en", {timeZone: tz}); } catch { return; }
-  if (!tz || tz === curTz) return;
-  if (![...$("tz").options].some(o => o.value === tz)) $("tz").add(new Option(tz, tz));
-  const ms = wallToUtcMs($("start").value, curTz);
-  curTz = tz; $("tz").value = tz;
-  if (!isNaN(ms)) $("start").value = utcMsToWall(ms, tz);
-}
-$("tz").onchange = () => setTz($("tz").value);
-async function detectTz() {
-  const la = +$("lat").value, lo = +$("lon").value, id = ++tzReq;
-  if (!isFinite(la) || !isFinite(lo)) return;
-  try {
-    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m&timezone=auto`);
-    const j = await r.json();
-    if (id === tzReq && j.timezone) { setTz(j.timezone); $("status").textContent = `Time zone set to ${j.timezone}.`; }
-  } catch { $("status").textContent = "Could not look up the time zone. Choose it from the list."; }
-}
-function setLocation(la, lo, pan) {
-  lo = ((+lo + 540) % 360) - 180;       // wrap map longitudes into -180..180
-  $("lat").value = (+la).toFixed(4); $("lon").value = lo.toFixed(4);
-  if (marker) { marker.setLatLng([+la, lo]); if (pan) map.setView([+la, lo], Math.max(map.getZoom(), 6)); }
-  detectTz();
-}
-function initMap() {
-  if (map) return map.invalidateSize();
-  const ll = [+$("lat").value || 0, +$("lon").value || 0];
-  map = L.map("map").setView(ll, 6);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {maxZoom: 18, attribution: "&copy; OpenStreetMap contributors"}).addTo(map);
-  marker = L.marker(ll, {draggable: true}).addTo(map);
-  map.on("click", e => setLocation(e.latlng.lat, e.latlng.lng, false));
-  marker.on("dragend", () => { const p = marker.getLatLng(); setLocation(p.lat, p.lng, false); });
-}
-$("mapbox").addEventListener("toggle", () => { if ($("mapbox").open) initMap(); });
-["lat", "lon"].forEach(id => $(id).addEventListener("change", () => {
-  const la = +$("lat").value, lo = +$("lon").value;
-  if (marker && isFinite(la) && isFinite(lo)) { marker.setLatLng([la, lo]); map.panTo([la, lo]); }
-  detectTz();
-}));
-
-/* ---------- geometry ---------- */
-function haversine(la1, lo1, la2, lo2) {
-  const dl = la2 - la1, dn = lo2 - lo1;
-  const a = Math.sin(dl / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dn / 2) ** 2;
-  return R * 2 * Math.asin(Math.sqrt(a));
-}
-function bearing(la1, lo1, la2, lo2) {
-  const dl = lo2 - lo1;
-  return Math.atan2(Math.sin(dl) * Math.cos(la2),
-    Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dl));
-}
-function sunElevation(ms, latDeg, lonDeg) {   // low-precision solar position, ~0.01 deg
-  const n = ms / 86400000 + 2440587.5 - 2451545.0;
-  const L = (280.460 + 0.9856474 * n) * D2R, g = (357.528 + 0.9856003 * n) * D2R;
-  const lam = L + (1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * D2R;
-  const eps = (23.439 - 4e-7 * n) * D2R;
-  const ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
-  const dec = Math.asin(Math.sin(eps) * Math.sin(lam));
-  const gmst = ((18.697374558 + 24.06570982441908 * n) % 24) * 15;
-  const H = (gmst + lonDeg) * D2R - ra, la = latDeg * D2R;
-  return Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(H)) / D2R;
-}
-
-/* ---------- TLE loading ---------- */
-let metaP, dataNote = "";
-async function getText(u) { const r = await fetch(u); if (!r.ok) throw new Error(`${r.status} for ${u}`); return r.text(); }
-async function getTles(key) {
-  // 1) snapshot committed by the GitHub Action, if fresh  2) live CelesTrak  3) stale snapshot
-  metaP ||= fetch("data/updated.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
-  const meta = await metaP, age = meta ? (Date.now() - Date.parse(meta.updated)) / 3600e3 : Infinity;
-  if (age < 24) { try { const t = await getText(`data/${key}.tle`); dataNote = `Orbit data: repo snapshot, ${age.toFixed(0)} h old.`; return t; } catch {} }
-  const ck = "tle:" + key, c = localStorage.getItem(ck);
-  if (c) { try { const o = JSON.parse(c); if (Date.now() - o.t < 12 * 3600e3) { dataNote = "Orbit data: CelesTrak (cached)."; return o.text; } } catch {} }
-  try {
-    const text = await getText(`https://celestrak.org/NORAD/elements/gp.php?${SOURCES[key]}&FORMAT=tle`);
-    try { localStorage.setItem(ck, JSON.stringify({t: Date.now(), text})); } catch {}
-    dataNote = "Orbit data: live from CelesTrak."; return text;
-  } catch (e) {
-    if (!meta) throw e;
-    dataNote = `Orbit data: repo snapshot, ${age.toFixed(0)} h old (live fetch failed).`;
-    return getText(`data/${key}.tle`);
-  }
-}
-function parseTles(text) {
-  const L = text.split(/\r?\n/).map(s => s.trimEnd()).filter(Boolean), out = [];
-  for (let i = 0; i + 2 < L.length; i += 3) {
-    if (!L[i + 1].startsWith("1 ")) { i -= 2; continue; }
-    const yy = +L[i + 1].slice(18, 20), day = parseFloat(L[i + 1].slice(20, 32));
-    out.push({name: L[i].trim(), num: parseInt(L[i + 1].slice(2, 7)),
-      epoch: Date.UTC(yy < 57 ? 2000 + yy : 1900 + yy, 0, 1) + (day - 1) * 86400000,
-      rec: satellite.twoline2satrec(L[i + 1], L[i + 2])});
-  }
-  return out;
-}
-const matches = (inst, s) => typeof inst.match === "number" ? s.num === inst.match : s.name.toUpperCase() === inst.match;
-
-/* ---------- pass finding ----------
-   A pass = the moment the satellite is abeam of you (closest approach), if your
-   cross-track offset is inside the swath. Found by skipping quickly while the
-   satellite is far away, stepping finely only when it is near, then refining
-   each closest approach to under a second. */
-function makeProp(rec) {
-  return ms => {
-    const d = new Date(ms), pv = satellite.propagate(rec, d);
-    if (!pv.position) return null;
-    const g = satellite.eciToGeodetic(pv.position, satellite.gstime(d));
-    return [g.latitude, g.longitude];
-  };
-}
-function refine(f, a, b) {                      // golden-section minimum, ~0.5 s
-  const g = 0.618034; let c = b - g * (b - a), d = a + g * (b - a), fc = f(c), fd = f(d);
-  while (b - a > 500) {
-    if (fc < fd) { b = d; d = c; fd = fc; c = b - g * (b - a); fc = f(c); }
-    else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = f(d); }
-  }
-  return (a + b) / 2;
-}
-function findPasses(rec, inst, t0, hours, la, lo) {
-  const side = inst.mode === "side", sign = inst.side === "left" ? -1 : 1;
-  const reach = side ? inst.far : inst.swath / 2, center = side ? (inst.near + inst.far) / 2 : 0;
-  const prop = makeProp(rec), tEnd = t0 + hours * 3600e3, out = [];
-  const dist = ms => { const p = prop(ms); return p ? haversine(la, lo, p[0], p[1]) : 1e9; };
-  const NEAR = reach + 300;                     // km: switch to fine stepping inside this radius
-  let t = t0, h = [];
-  while (t < tEnd) {
-    const d = dist(t);
-    if (d > NEAR) { h = []; t += Math.max(20000, (d - NEAR) / 8.5 * 1000); continue; }  // 8.5 km/s > max closing speed
-    h.push([t, d]); if (h.length > 3) h.shift();
-    if (h.length === 3 && h[1][1] <= h[0][1] && h[1][1] < h[2][1]) {
-      const tm = refine(dist, h[0][0], h[2][0]), p = prop(tm), q = prop(tm + 1000);
-      if (p && q && tm <= tEnd) {
-        const dm = haversine(la, lo, p[0], p[1]);
-        const hdg = bearing(p[0], p[1], q[0], q[1]), brg = bearing(p[0], p[1], la, lo);
-        const x = Math.asin(Math.max(-1, Math.min(1, Math.sin(dm / R) * Math.sin(brg - hdg)))) * R; // + = you are right of track
-        if (side) { const sx = sign * x; if (sx >= inst.near && sx <= inst.far) out.push({t: tm, off: Math.abs(sx - center)}); }
-        else if (Math.abs(x) <= reach) out.push({t: tm, off: Math.abs(x)});
-      }
-    }
-    t += 15000;
-  }
-  return out;
-}
-
-/* ---------- main ---------- */
-const tick = () => new Promise(r => setTimeout(r, 0));
-
-async function run(ev) {
-  ev.preventDefault();
-  const la = +$("lat").value, lo = +$("lon").value, tz = $("tz").value;
-  const t0 = wallToUtcMs($("start").value, tz);
-  const mapH = Math.max(1, +$("days").value) * 24, dayH = Math.max(1, +$("dh").value);
-  const minSun = +$("minsun").value, showNight = $("night").checked, limit = +$("rows").value;
-  const single = $("single").checked;
-  R = gaussR(la * D2R);
-  const btn = ev.submitter; btn.disabled = true; $("out").innerHTML = "";
-  const rows = [], dailyNames = new Set(), found = new Set(), warns = [];
-  let hidden = 0;
-  try {
-    const bySource = {};
-    INSTRUMENTS.forEach((inst, i) => (bySource[inst.source] ||= []).push([i, inst]));
-    $("status").textContent = "Loading orbit data...";
-    const loaded = await Promise.all(Object.keys(bySource).map(async k => {
-      try { return [k, parseTles(await getTles(k))]; }
-      catch (e) { warns.push(`Could not load ${k} (${e.message}).`); return [k, null]; }
-    }));
-    let gap = 0;
-    for (const [source, sats] of loaded) {
-      if (!sats) continue;
-      for (const [idx, inst] of bySource[source]) {
-        const sat = sats.filter(s => matches(inst, s)).sort((a, b) => b.epoch - a.epoch)[0];
-        if (!sat) { warns.push(`No satellite matching ${inst.match} in ${source} data (retired, renamed, or wrong ID).`); continue; }
-        const label = inst.label || sat.name;
-        if (inst.view === "daily") dailyNames.add(label);
-        gap = Math.max(gap, Math.abs(t0 - sat.epoch) / 86400e3);
-        $("status").textContent = `Computing ${label}...`;
-        await tick();
-        for (const p of findPasses(sat.rec, inst, t0, inst.view === "mapping" ? mapH : dayH, la * D2R, lo * D2R)) {
-          const elev = sunElevation(p.t, la, lo), daylight = elev >= minSun;
-          if (inst.day && !daylight && !showNight) { hidden++; continue; }
-          rows.push({t: p.t, view: inst.view, name: label, secs: (p.t - t0) / 1000, km: p.off, sun: elev,
-            night: inst.day && !daylight, local: fmtLocal(p.t, tz)});
-        }
-      }
-    }
-    if (gap > 7) warns.push(`Orbit data is ${gap.toFixed(0)} days from your start time, so pass times may be off by minutes.`);
-    rows.sort((a, b) => a.t - b.t);
-    render(rows, dailyNames, single, limit, hidden, minSun, dayH, la, lo, tz, t0);
-    $("status").textContent = [...warns, dataNote].join(" ");
-  } catch (e) {
-    $("status").textContent = "Something went wrong: " + e.message;
-  } finally { btn.disabled = false; }
-}
-
-function sunCell(r) { return `${Math.round(r.sun)} deg` + (r.night ? ` <span class="night">night</span>` : ""); }
-
-function board(rows, limit, head) {
-  if (!rows.length) return `<p>No passes found in the window.</p>`;
-  const body = rows.slice(0, limit).map(r => `<tr><td class="n">${countdown(r.secs)}</td><td>${r.local}</td>
-    <td>${r.name}</td><td class="n">${r.km.toFixed(0)} km</td><td>${sunCell(r)}</td></tr>`).join("");
-  const more = rows.length > limit ? `<p class="note">... and ${rows.length - limit} more. Raise "Max rows" to see them.</p>` : "";
-  return `<div class="wrap"><table><thead><tr><th class="n">${head}</th><th>Local time (abeam)</th><th>Satellite</th>
-    <th class="n">Off-center</th><th>Sun</th></tr></thead><tbody>${body}</tbody></table></div>${more}`;
-}
-function daily(rows, names, dayH) {
-  const by = {};
-  rows.forEach(r => (by[r.name] ||= []).push(r));
-  const sum = Object.values(by).map(rs => [rs[0], rs.filter(r => r.secs <= 86400).length]).sort((a, b) => a[0].t - b[0].t);
-  const body = sum.map(([r, n]) => `<tr><td class="n">${countdown(r.secs)}</td><td>${r.local}</td><td>${r.name}</td>
-    <td class="n">${r.km.toFixed(0)} km</td><td>${sunCell(r)}</td><td>${n} pass(es)</td></tr>`).join("");
-  const none = [...names].filter(n => !by[n]).sort().map(n =>
-    `<tr><td class="n">-</td><td>none in next ${dayH} h</td><td>${n}</td><td></td><td></td><td></td></tr>`).join("");
-  return `<div class="wrap"><table><thead><tr><th class="n">Next after start</th><th>Local time (abeam)</th><th>Satellite</th>
-    <th class="n">Off-center</th><th>Sun</th><th>Next 24 h</th></tr></thead><tbody>${body}${none}</tbody></table></div>`;
-}
-function render(rows, names, single, limit, hidden, minSun, dayH, la, lo, tz, t0) {
-  let h = `<h2>Imaging passes over ${la.toFixed(4)}, ${lo.toFixed(4)}</h2>
-    <p class="note">From ${fmtLocal(t0, tz)}</p>`;
-  if (single) h += board(rows, limit, "From start");
-  else {
-    h += `<h2>Mapping passes (Landsat, Sentinel-1/2)</h2>` + board(rows.filter(r => r.view === "mapping"), limit, "From start");
-    h += `<h2>Daily wide-swath coverage</h2>` + daily(rows.filter(r => r.view === "daily"), names, dayH);
-  }
-  if (hidden) h += `<p class="note">${hidden} optical night pass(es) hidden: sun below ${minSun} deg.</p>`;
-  $("out").innerHTML = h;
-}
-$("f").addEventListener("submit", run);
-</script>
+<hr>
+<p><small>Orbit data from <a href="https://celestrak.org">CelesTrak</a>. Map tiles from OpenStreetMap contributors.<br>
+<a href="../">Back to the main site</a></small></p>
 </body>
 </html>
