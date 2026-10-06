@@ -34,7 +34,7 @@ jobs:
         run: |
           mkdir -p docs/satellites/data
           cp satellites/data/* docs/satellites/data/
-          cp satellites/index.html docs/satellites/index.html
+          cp satellites/*.html docs/satellites/
 
       - name: Commit and push
         run: |
